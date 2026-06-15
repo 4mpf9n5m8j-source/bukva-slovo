@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0f0f0f">
 <link rel="manifest" id="pwa-manifest">
 <link rel="apple-touch-icon" id="apple-icon">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Буква-Слово v3</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Inter:wght@400;500;600&display=swap');
@@ -19,7 +19,28 @@
     --text: #f0f0f0; --muted: #666; --border: #2a2a2a;
     --green: #4caf50; --red: #f44336; --orange: #ff9800;
   }
-  body { background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 16px; }
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    position: fixed;
+    touch-action: pan-y;
+  }
+  body {
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 16px);
+    box-sizing: border-box;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
   h1 { font-family:'Unbounded',sans-serif; font-size:clamp(13px,3vw,18px); font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin-bottom:32px; text-align:center; }
   h1 span { color:var(--accent); }
 
@@ -103,6 +124,29 @@
   .final-row .fpts { font-family:'Unbounded',sans-serif; font-size:20px; font-weight:900; color:var(--accent); }
   .final-row .fplace { font-size:20px; margin-right:10px; }
   .btn-restart { width:100%; background:var(--accent); color:#000; border:none; border-radius:10px; padding:16px; font-family:'Unbounded',sans-serif; font-size:13px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; margin-top:8px; }
+
+
+  @media (max-height: 700px) {
+    h1 { margin-bottom: 16px; font-size: 12px; }
+    .game-area { gap: 14px; }
+    .card { width: 90px; height: 120px; font-size: 48px; }
+    .timer-display { font-size: 38px; }
+    .player-btn { padding: 10px 8px; }
+    .player-btn .p-score { font-size: 18px; }
+    .player-btn .p-name { font-size: 11px; }
+    .btn-start, .btn-next-round { padding: 12px; font-size: 11px; }
+    .score-item strong { font-size: 18px; }
+  }
+  @media (max-height: 600px) {
+    h1 { display: none; }
+    .card { width: 75px; height: 100px; font-size: 40px; }
+    .timer-display { font-size: 32px; }
+    .game-area { gap: 10px; }
+  }
+  @media (max-width: 360px) {
+    .card { width: 100px; height: 135px; font-size: 52px; }
+    .players-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  }
 
   @keyframes pop { 0%{transform:scale(0.7) rotate(-4deg);opacity:0} 60%{transform:scale(1.08) rotate(1deg)} 100%{transform:scale(1) rotate(0deg);opacity:1} }
   .card.pop { animation:pop 0.35s cubic-bezier(.4,0,.2,1) both; }
@@ -1002,6 +1046,21 @@ function rounds(n) {
 players = [{ name:'', score:0, roundScore:0 }, { name:'', score:0, roundScore:0 }];
 renderSetup();
 
+
+
+// Блокируем любой зум
+document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
+document.addEventListener('gesturechange', function(e) { e.preventDefault(); });
+document.addEventListener('gestureend', function(e) { e.preventDefault(); });
+document.addEventListener('touchmove', function(e) {
+  if (e.touches.length > 1) e.preventDefault();
+}, { passive: false });
+var lastTap = 0;
+document.addEventListener('touchend', function(e) {
+  var now = Date.now();
+  if (now - lastTap < 300) e.preventDefault();
+  lastTap = now;
+}, { passive: false });
 
 // ── PWA SETUP ──
 (function() {
