@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Буква-Слово">
+<meta name="theme-color" content="#0f0f0f">
+<link rel="manifest" id="pwa-manifest">
+<link rel="apple-touch-icon" id="apple-icon">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Буква-Слово v3</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Inter:wght@400;500;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f0f; --surface: #1a1a1a; --surface2: #242424;
+    --accent: #d4f500; --accent-dim: #a8c200;
+    --text: #f0f0f0; --muted: #666; --border: #2a2a2a;
+    --green: #4caf50; --red: #f44336; --orange: #ff9800;
+  }
+  body { background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 16px; }
+  h1 { font-family:'Unbounded',sans-serif; font-size:clamp(13px,3vw,18px); font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin-bottom:32px; text-align:center; }
+  h1 span { color:var(--accent); }
+
+  .screen { width:100%; max-width:480px; display:flex; flex-direction:column; align-items:center; gap:20px; }
+  .screen.hidden { display:none; }
+
+  /* SETUP */
+  .setup-title { font-family:'Unbounded',sans-serif; font-size:15px; font-weight:700; color:var(--text); text-align:center; }
+  .setup-sub { font-size:13px; color:var(--muted); text-align:center; }
+  .players-list { width:100%; display:flex; flex-direction:column; gap:8px; }
+  .player-row { display:flex; align-items:center; gap:8px; }
+  .player-num { font-family:'Unbounded',sans-serif; font-size:11px; color:var(--muted); width:20px; text-align:right; flex-shrink:0; }
+  .player-input { flex:1; background:var(--surface); border:2px solid var(--border); border-radius:8px; padding:12px 14px; font-size:15px; font-family:'Inter',sans-serif; color:var(--text); outline:none; transition:border-color 0.2s; }
+  .player-input:focus { border-color:var(--accent); }
+  .player-input::placeholder { color:var(--muted); }
+  .btn-remove { background:none; border:none; color:var(--muted); font-size:18px; cursor:pointer; padding:4px 8px; flex-shrink:0; line-height:1; transition:color 0.2s; }
+  .btn-remove:hover { color:var(--red); }
+  .btn-add-player { width:100%; background:var(--surface); border:2px dashed var(--border); border-radius:8px; padding:12px; font-family:'Unbounded',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); cursor:pointer; transition:border-color 0.2s, color 0.2s; }
+  .btn-add-player:hover { border-color:var(--accent); color:var(--accent); }
+  .btn-start { width:100%; background:var(--accent); color:#000; border:none; border-radius:10px; padding:16px; font-family:'Unbounded',sans-serif; font-size:13px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; transition:background 0.2s; }
+  .btn-start:hover { background:var(--accent-dim); }
+  .btn-start:disabled { background:var(--border); color:var(--muted); cursor:not-allowed; }
+
+  /* GAME */
+  .cards-row { display:flex; align-items:center; gap:20px; }
+  .card { width:120px; height:160px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-family:'Unbounded',sans-serif; font-size:64px; font-weight:900; position:relative; user-select:none; }
+  .card.drawn { background:var(--surface); border:2px solid var(--border); box-shadow:0 8px 32px rgba(0,0,0,0.5); color:var(--accent); }
+  .card.first.drawn { border-color:var(--accent); }
+  .card.empty { background:#1a1a1a; border:2px dashed var(--border); color:var(--muted); font-size:32px; }
+  .arrow { font-size:28px; color:var(--muted); flex-shrink:0; }
+  .card-label { position:absolute; bottom:10px; font-size:10px; font-family:'Inter',sans-serif; font-weight:500; letter-spacing:0.15em; text-transform:uppercase; color:var(--muted); }
+  .card.first .card-label { color:var(--accent-dim); }
+
+  /* TIMER */
+  .timer-wrap { width:100%; display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .timer-wrap.invisible { visibility:hidden; pointer-events:none; }
+  .timer-display { font-family:'Unbounded',sans-serif; font-size:52px; font-weight:900; color:var(--accent); line-height:1; transition:color 0.3s; }
+  .timer-display.warning { color:var(--orange); }
+  .timer-display.danger { color:var(--red); animation:pulse 0.5s infinite alternate; }
+  @keyframes pulse { from{opacity:1} to{opacity:0.4} }
+  .timer-bar-track { width:100%; height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
+  .timer-bar { height:100%; background:var(--accent); border-radius:2px; transition:width 1s linear, background 0.3s; }
+  .timer-bar.warning { background:var(--orange); }
+  .timer-bar.danger { background:var(--red); }
+
+  /* PLAYER BUTTONS */
+  .players-grid { width:100%; display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; }
+  .player-btn { background:var(--surface); border:2px solid var(--border); border-radius:10px; padding:14px 10px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:6px; transition:border-color 0.15s, background 0.15s, transform 0.1s; user-select:none; -webkit-user-select:none; }
+  .player-btn:active { transform:scale(0.95); }
+  .player-btn.scored { border-color:var(--accent); background:rgba(212,245,0,0.08); }
+  .player-btn .p-name { font-family:'Unbounded',sans-serif; font-size:12px; font-weight:700; color:var(--text); text-align:center; word-break:break-word; line-height:1.3; }
+  .player-btn .p-score { font-family:'Unbounded',sans-serif; font-size:22px; font-weight:900; color:var(--accent); line-height:1; }
+  .player-btn.scored .p-name { color:var(--accent); }
+
+  .round-label { font-size:11px; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; font-family:'Unbounded',sans-serif; }
+
+  /* ROUND RESULT */
+  .result-panel { width:100%; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:16px; }
+  .result-panel h2 { font-family:'Unbounded',sans-serif; font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; }
+  .words-section h3 { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:8px; font-family:'Unbounded',sans-serif; }
+  .words-grid { display:flex; flex-wrap:wrap; gap:6px; }
+  .word-chip { background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:5px 10px; font-size:13px; font-weight:600; color:var(--text); }
+  .scores-list { display:flex; flex-direction:column; gap:8px; }
+  .score-row-item { display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--surface2); border-radius:8px; }
+  .score-row-item .sname { font-weight:600; font-size:14px; }
+  .score-row-item .spts { font-family:'Unbounded',sans-serif; font-size:16px; font-weight:900; color:var(--accent); }
+  .score-row-item.leader { border:1px solid var(--accent); }
+  .score-row-item .medal { font-size:16px; }
+  .btn-next-round { width:100%; background:var(--accent); color:#000; border:none; border-radius:10px; padding:16px; font-family:'Unbounded',sans-serif; font-size:13px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; transition:background 0.2s; }
+  .btn-next-round:hover { background:var(--accent-dim); }
+  .btn-end-game { width:100%; background:var(--surface); color:var(--muted); border:2px solid var(--border); border-radius:10px; padding:12px; font-family:'Unbounded',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; }
+
+  /* FINAL */
+  .final-panel { width:100%; display:flex; flex-direction:column; gap:12px; }
+  .final-title { font-family:'Unbounded',sans-serif; font-size:18px; font-weight:900; color:var(--accent); text-align:center; }
+  .final-sub { font-size:13px; color:var(--muted); text-align:center; }
+  .final-scores { width:100%; display:flex; flex-direction:column; gap:8px; }
+  .final-row { display:flex; justify-content:space-between; align-items:center; padding:14px 16px; background:var(--surface); border-radius:10px; }
+  .final-row.first-place { background:rgba(212,245,0,0.1); border:2px solid var(--accent); }
+  .final-row .fname { font-weight:700; font-size:15px; }
+  .final-row .fpts { font-family:'Unbounded',sans-serif; font-size:20px; font-weight:900; color:var(--accent); }
+  .final-row .fplace { font-size:20px; margin-right:10px; }
+  .btn-restart { width:100%; background:var(--accent); color:#000; border:none; border-radius:10px; padding:16px; font-family:'Unbounded',sans-serif; font-size:13px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; margin-top:8px; }
+
+  @keyframes pop { 0%{transform:scale(0.7) rotate(-4deg);opacity:0} 60%{transform:scale(1.08) rotate(1deg)} 100%{transform:scale(1) rotate(0deg);opacity:1} }
+  .card.pop { animation:pop 0.35s cubic-bezier(.4,0,.2,1) both; }
+  @keyframes bump { 0%{transform:scale(1)} 50%{transform:scale(1.15)} 100%{transform:scale(1)} }
+  .bump { animation:bump 0.2s ease; }
+</style>
+</head>
+<body>
+
+<h1>Буква <span>→</span> Слово <span>→</span> Буква</h1>
+
+<!-- SETUP SCREEN -->
+<div class="screen" id="screenSetup">
+  <div class="setup-title">Участники</div>
+  <div class="setup-sub">Добавь от 2 до 10 игроков</div>
+  <div class="players-list" id="playersList"></div>
+  <button class="btn-add-player" id="btnAddPlayer">+ Добавить игрока</button>
+  <button class="btn-start" id="btnStart" disabled>Начать игру</button>
+</div>
+
+<!-- GAME SCREEN -->
+<div class="screen hidden" id="screenGame">
+  <div class="round-label" id="roundLabel">Раунд 1</div>
+  <div class="cards-row">
+    <div class="card first empty" id="card1">?<span class="card-label">начало</span></div>
+    <div class="arrow">→</div>
+    <div class="card second empty" id="card2">?<span class="card-label">конец</span></div>
+  </div>
+  <div class="timer-wrap invisible" id="timerWrap">
+    <div class="timer-display" id="timerDisplay">1:00</div>
+    <div class="timer-bar-track"><div class="timer-bar" id="timerBar" style="width:100%"></div></div>
+  </div>
+  <div class="players-grid" id="playersGrid"></div>
+  <button class="btn-start" id="btnDraw" style="margin-top:4px">Вытянуть карты</button>
+</div>
+
+<!-- RESULT SCREEN -->
+<div class="screen hidden" id="screenResult">
+  <div class="result-panel">
+    <h2 id="resultRoundLabel">Раунд 1 — итог</h2>
+    <div class="words-section">
+      <h3>Варианты слов</h3>
+      <div class="words-grid" id="resultWords"></div>
+    </div>
+    <div>
+      <h3 style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;font-family:'Unbounded',sans-serif;">Счёт раунда</h3>
+      <div class="scores-list" id="resultScores"></div>
+    </div>
+  </div>
+  <button class="btn-next-round" id="btnNextRound">Следующий раунд</button>
+  <button class="btn-end-game" id="btnEndGame">Завершить игру</button>
+</div>
+
+<!-- FINAL SCREEN -->
+<div class="screen hidden" id="screenFinal">
+  <div class="final-title">Игра окончена</div>
+  <div class="final-sub" id="finalSub">Итоговый счёт</div>
+  <div class="final-scores" id="finalScores"></div>
+  <button class="btn-restart" id="btnRestart">Новая игра</button>
+</div>
+
+<script>
+window.onerror = function(msg, src, line, col, err) {
+  var d = document.createElement('div');
+  d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#f44336;color:#fff;padding:12px;font-size:12px;z-index:99999;word-break:break-all;font-family:monospace';
+  d.textContent = 'ERROR: ' + msg + ' (line ' + line + ')';
+  document.body.appendChild(d);
+  return false;
+};
+// ── AUDIO ENGINE ──
+var AudioCtx = window.AudioContext || window.webkitAudioContext;
+var actx = null;
+
+function getCtx() {
+  if (!actx) actx = new AudioCtx();
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
+
+function tone(freq, start, dur, vol, type, fadeOut) {
+  var ctx = getCtx();
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
+  gain.gain.setValueAtTime(vol || 0.3, ctx.currentTime + start);
+  if (fadeOut) gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+  osc.start(ctx.currentTime + start);
+  osc.stop(ctx.currentTime + start + dur);
+}
+
+function noise(start, dur, vol) {
+  var ctx = getCtx();
+  var bufSize = Math.floor(ctx.sampleRate * dur);
+  var buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  var data = buf.getChannelData(0);
+  for (var i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+  var src = ctx.createBufferSource();
+  src.buffer = buf;
+  var gain = ctx.createGain();
+  gain.gain.setValueAtTime(vol || 0.05, ctx.currentTime + start);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+  src.connect(gain); gain.connect(ctx.destination);
+  src.start(ctx.currentTime + start);
+  src.stop(ctx.currentTime + start + dur);
+}
+
+// Старт раунда — три нарастающих удара + свист вверх
+function soundRoundStart() {
+  [0, 0.18, 0.36].forEach(function(t, i) {
+    tone(100 + i * 80, t, 0.12, 0.4, 'square', true);
+    noise(t, 0.08, 0.1);
+  });
+  var ctx = getCtx();
+  var osc = ctx.createOscillator();
+  var g = ctx.createGain();
+  osc.connect(g); g.connect(ctx.destination);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(500, ctx.currentTime + 0.55);
+  osc.frequency.linearRampToValueAtTime(1400, ctx.currentTime + 0.95);
+  g.gain.setValueAtTime(0.3, ctx.currentTime + 0.55);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.0);
+  osc.start(ctx.currentTime + 0.55);
+  osc.stop(ctx.currentTime + 1.0);
+}
+
+
+
+// ── ФОНОВАЯ МУЗЫКА ТАЙМЕРА (стиль "Кто хочет стать миллионером") ──
+var bgNodes = [];
+var bgScheduled = false;
+
+function startBgMusic() {
+  stopBgMusic();
+  var ctx = getCtx();
+  var now = ctx.currentTime + 0.05;
+
+  // Точная тема «Миллионера» — характерный пульсирующий паттерн
+  // Оригинал в Dm, основная ячейка = 0.5с (120 BPM)
+  // Паттерн: короткие удары + нарастающая мелодия
+  
+  var bpm = 118;
+  var beat = 60 / bpm;       // ~0.508с
+  var sixteenth = beat / 4;  // ~0.127с
+
+  // --- БОЧКА (kick) ---
+  function kick(t, vol) {
+    vol = vol || 1;
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sine';
+    o.frequency.setValueAtTime(150, t);
+    o.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+    g.gain.setValueAtTime(0.5 * vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    o.start(t); o.stop(t + 0.25);
+    bgNodes.push(o);
+  }
+
+  // --- ХАЙ-ХЭТ (hi-hat) ---
+  function hihat(t, vol) {
+    vol = vol || 1;
+    var bufSize = Math.floor(ctx.sampleRate * 0.06);
+    var buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < bufSize; i++) d[i] = Math.random() * 2 - 1;
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    var hpf = ctx.createBiquadFilter();
+    hpf.type = 'highpass';
+    hpf.frequency.value = 8000;
+    var g = ctx.createGain();
+    src.connect(hpf); hpf.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.08 * vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+    src.start(t); src.stop(t + 0.06);
+    bgNodes.push(src);
+  }
+
+  // --- СИНТ-БАС ---
+  function bass(t, freq, dur, vol) {
+    vol = vol || 1;
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.18 * vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.8);
+    o.start(t); o.stop(t + dur);
+    bgNodes.push(o);
+  }
+
+  // --- МЕЛОДИЯ ---
+  function mel(t, freq, dur, vol, vib) {
+    vol = vol || 1;
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    if (vib) {
+      // вибрато
+      var lfo = ctx.createOscillator();
+      var lfoG = ctx.createGain();
+      lfo.connect(lfoG); lfoG.connect(o.frequency);
+      lfoG.gain.setValueAtTime(8, t + dur * 0.4);
+      lfo.frequency.setValueAtTime(5.5, t);
+      lfo.start(t); lfo.stop(t + dur);
+      bgNodes.push(lfo);
+    }
+    g.gain.setValueAtTime(0.22 * vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.9);
+    o.start(t); o.stop(t + dur);
+    bgNodes.push(o);
+  }
+
+  // --- ПЭДЫ (фоновый аккорд) ---
+  function pad(t, freqs, dur, vol) {
+    vol = vol || 1;
+    freqs.forEach(function(f) {
+      var o = ctx.createOscillator();
+      var g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine';
+      o.frequency.setValueAtTime(f, t);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.04 * vol, t + 0.3);
+      g.gain.setValueAtTime(0.04 * vol, t + dur - 0.3);
+      g.gain.linearRampToValueAtTime(0, t + dur);
+      o.start(t); o.stop(t + dur);
+      bgNodes.push(o);
+    });
+  }
+
+  // ============================================================
+  // СТРУКТУРА: ~8 тактов = 60 секунд при 118 BPM
+  // Тема «Миллионера» — Dm, пульс каждые 2 доли
+  // ============================================================
+
+  var t = now;
+  var totalBars = 15; // хватит на 60 секунд с запасом
+
+  // Ноты темы «Миллионера» (Dm) — характерная фраза
+  // Реальная мелодия: D E F G A Bb A G F E D
+  var theme = [
+    // фраза 1
+    {f:294,d:beat*0.5}, {f:330,d:beat*0.5}, {f:349,d:beat*0.5}, {f:392,d:beat*0.5},
+    {f:440,d:beat*0.75},{f:415,d:beat*0.25},{f:392,d:beat},{f:0,d:beat*0.5},
+    // фраза 2
+    {f:349,d:beat*0.5},{f:330,d:beat*0.5},{f:294,d:beat},{f:0,d:beat*0.5},
+    {f:262,d:beat*0.5},{f:294,d:beat*0.5},{f:330,d:beat*0.5},
+    {f:349,d:beat},{f:0,d:beat*0.5},
+    // фраза 3 — нарастает
+    {f:392,d:beat*0.5},{f:415,d:beat*0.5},{f:440,d:beat*0.5},{f:466,d:beat*0.5},
+    {f:494,d:beat},{f:523,d:beat},{f:0,d:beat},
+    // разрешение
+    {f:440,d:beat*0.5},{f:392,d:beat*0.5},{f:349,d:beat},{f:330,d:beat*2},
+  ];
+
+  var themeDur = theme.reduce(function(a,n){return a+n.d;},0);
+
+  // Бас-линия (Dm характерная)
+  var bassLine = [
+    {f:73.4,d:beat},{f:73.4,d:beat},{f:87.3,d:beat},{f:87.3,d:beat},
+    {f:98,d:beat},{f:98,d:beat},{f:87.3,d:beat},{f:73.4,d:beat},
+    {f:65.4,d:beat},{f:65.4,d:beat},{f:73.4,d:beat},{f:87.3,d:beat},
+    {f:98,d:beat*2},{f:87.3,d:beat},{f:73.4,d:beat},
+  ];
+  var bassLineDur = bassLine.reduce(function(a,n){return a+n.d;},0);
+
+  // Аккорды пэдов
+  var chords = [
+    {fs:[146.8,175,220],d:beat*4},   // Dm
+    {fs:[130.8,164.8,196],d:beat*4}, // C
+    {fs:[116.5,146.8,174.6],d:beat*4},// Bb
+    {fs:[130.8,164.8,196],d:beat*4}, // C
+  ];
+  var chordsDur = chords.reduce(function(a,c){return a+c.d;},0);
+
+  // Планируем на 60 секунд
+  var loops = Math.ceil(62 / themeDur) + 1;
+
+  for (var loop = 0; loop < loops; loop++) {
+    var loopStart = t + loop * themeDur;
+    var intensity = Math.min(loop / 3, 1); // нарастание
+
+    // Мелодия
+    var mt = loopStart;
+    theme.forEach(function(note) {
+      if (note.f > 0) {
+        mel(mt, note.f, note.d * 0.88, 0.7 + intensity * 0.5, intensity > 0.5);
+      }
+      mt += note.d;
+    });
+
+    // Бас
+    var bt = loopStart;
+    bassLine.forEach(function(note) {
+      bass(bt, note.f, note.d * 0.7, 0.6 + intensity * 0.5);
+      bt += note.d;
+    });
+
+    // Ритм — характерный пульс «Миллионера»
+    for (var b = 0; b < Math.floor(themeDur / beat); b++) {
+      var bt2 = loopStart + b * beat;
+      // бочка на 1 и 3
+      if (b % 4 === 0 || b % 4 === 2) kick(bt2, 0.7 + intensity * 0.4);
+      // хай-хэт на каждую долю
+      hihat(bt2, 0.5 + intensity * 0.5);
+      // доп хай-хэт между
+      hihat(bt2 + beat * 0.5, 0.3 + intensity * 0.3);
+    }
+
+    // Пэды
+    var ct = loopStart;
+    chords.forEach(function(ch) {
+      pad(ct, ch.fs, ch.d, 0.5 + intensity * 0.7);
+      ct += ch.d;
+    });
+  }
+}
+
+function stopBgMusic() {
+  bgNodes.forEach(function(n) { try { n.stop(); } catch(e){} });
+  bgNodes = [];
+}
+
+// Конец таймера — провальный нисходящий звук
+function soundTimeUp() {
+  noise(0, 0.08, 0.3);
+  tone(150, 0, 0.15, 0.4, 'square', true);
+  [500, 400, 300, 200, 120].forEach(function(f, i) {
+    tone(f, i * 0.1, 0.12, 0.25, 'sine', true);
+  });
+  tone(80, 0.55, 0.35, 0.3, 'sine', true);
+  noise(0.55, 0.25, 0.1);
+}
+
+// Весёлый звук нажатия — случайный из нескольких вариантов
+function soundScore() {
+  var variants = [
+    function() {
+      // пинг вверх
+      var ctx = getCtx();
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine';
+      o.frequency.setValueAtTime(600, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.12);
+      g.gain.setValueAtTime(0.35, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+      o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.18);
+    },
+    function() {
+      // бип-боп
+      tone(880, 0, 0.07, 0.3, 'sine', true);
+      tone(1100, 0.08, 0.07, 0.3, 'sine', true);
+    },
+    function() {
+      // монетка
+      tone(1400, 0, 0.04, 0.2, 'sine', true);
+      tone(1800, 0.04, 0.08, 0.15, 'sine', true);
+      tone(1400, 0.1, 0.06, 0.1, 'sine', true);
+    },
+    function() {
+      // рикошет
+      var ctx = getCtx();
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(1500, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.15);
+      g.gain.setValueAtTime(0.2, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.15);
+    },
+    function() {
+      // звёздочка — три быстрых тона
+      [1047, 1319, 1568].forEach(function(f, i) {
+        tone(f, i * 0.055, 0.07, 0.2, 'sine', true);
+      });
+    }
+  ];
+  variants[Math.floor(Math.random() * variants.length)]();
+}
+
+// Тик — короткий щелчок для последних 10 секунд
+function soundTick(urgency) {
+  var freq = 800 + urgency * 40;
+  tone(freq, 0, 0.035, 0.25, 'square', true);
+  tone(freq * 0.5, 0, 0.02, 0.1, 'sine', true);
+}
+
+// Финальная фанфара в стиле "Кто хочет стать миллионером"
+function soundFinal() {
+  // нарастающее напряжение
+  [220, 277, 330, 415, 494].forEach(function(f, i) {
+    tone(f, i * 0.08, 0.1, 0.18, 'sine', true);
+  });
+  // удар с шумом
+  noise(0.5, 0.2, 0.25);
+  tone(55, 0.5, 0.25, 0.5, 'sine', true);
+  tone(110, 0.5, 0.2, 0.3, 'square', true);
+  // пауза и победная фанфара (восходящий мажор)
+  var fanf = [523, 659, 784, 880, 1047, 1319];
+  fanf.forEach(function(f, i) {
+    tone(f, 0.82 + i * 0.09, 0.35 + (i === fanf.length-1 ? 0.4 : 0), 0.28, 'sine', true);
+  });
+  // финальный аккорд
+  [523, 659, 784, 1047].forEach(function(f, j) {
+    tone(f, 1.45, 1.4, 0.18, 'sine', true);
+  });
+  // блеск поверх
+  [2093, 2637, 3136].forEach(function(f, i) {
+    tone(f, 1.5 + i * 0.1, 0.5, 0.07, 'sine', true);
+  });
+}
+
+var WORDS = {
+"А-А":"акация,аура,антенна,армада,афера,авиация,агония,амнезия,аномалия,анархия,астма,аренда",
+"А-Л":"алкоголь,арсенал,астрал,аврал,акрил,апрель,автомобиль,асфальт,ансамбль",
+"А-М":"аквариум,алюминий,аромат,аргумент,атом,антагонизм,анализ",
+"А-Н":"аккордеон,аттракцион,аукцион,авиасалон,альбион,арбузон,аристон",
+"А-Р":"актёр,аналитикер,аромар,аватар,амбассадор,аккумулятор",
+"А-С":"автобус,антивирус,апокалипсис,алфавит,арбуз,абрикос,ананас,атлас,адрес,анис",
+"А-Т":"абстракт,алфавит,аккаунт,аспирант,ассистент,аргумент,абсент,агент,аппетит,арест,атлет,акцент,аскет,авторитет,аудит,артист,аналитик,астронавт,акробат",
+"А-Я":"анархия,академия,аллергия,астрономия,агония,акация,аномалия,армия,артерия,ария",
+
+"Б-А":"борьба,борода,была,болота,буква,бумага,богема,берёза,балка",
+"Б-Л":"бокал,базел,брутал,ботинок,бронзол,братал",
+"Б-Н":"бетон,батон,бизон,балкон,бекон,барабан,баран,болтун",
+"Б-Р":"базар,бар,бобёр,боксёр,бочар,брокер,бухгалтер,буфер",
+"Б-С":"бизнес,балас,болезнь,благос",
+"Б-Т":"банкет,балет,бюджет,букет,бархат,болт,бант,борт,бюст,бинт,бунт",
+"Б-Ь":"борьба,болезнь,бровь,быль,безмолвие,бедность",
+
+"В-А":"вода,война,весна,вина,волна,выгода,виза,ванна,вера,витрина,впадина,верста,вьюга,вакцина,ватрушка,ватага",
+"В-Е":"варенье,влияние,вещество,видение,восстание,волнение,вредное,важное,верное",
+"В-Л":"вал,вокал,вассал,вертикал,визуал",
+"В-Н":"вагон,вулкан,ворон,ветеран,волан,ватман",
+"В-О":"вино,волокно,ведро,весело,верно,вечно,взросло,важно,вкусно",
+"В-Р":"вампир,вектор,ветер,вздор,вор",
+"В-С":"вирус,вальс",
+"В-Т":"визит,взлёт,выход,вычет,вариант",
+"В-Ь":"вождь,ветвь,вихрь,веселье,весть,вещь,виолончель,верфь,власть,верность,важность,вечность",
+"В-Я":"вишня,вечерня",
+
+"Г-А":"гора,глава,горка,грива,гроза,губа,газета,гамма,гитара,гонка,граница,грядка,голова,гусеница,громада,гречка",
+"Г-Б":"гриб,голуб,горб,граб",
+"Г-Л":"гол,граал,глобал,генерал,госпиталь",
+"Г-Н":"гармония,гарнизон,горизонт,гормон,гетман,гражданин",
+"Г-О":"гнездо,гетто,гордо,громко,грубо,грустно,густо,гладко,глубоко,горячо",
+"Г-Р":"губернатор,генератор,гравёр",
+"Г-С":"газ,голос",
+"Г-Т":"горизонт,гимнаст",
+"Г-Ь":"гость,грусть,гладь,горсть,грязь,гордость,глубь,глушь,горечь",
+
+"Д-А":"дорога,дева,дыра,душа,дача,деревня,дрова,дата,дюжина,держава,дорожка,добыча,дочка,добавка,двойка",
+"Д-Е":"движение,давление,действие,доверие,добавление,добросовестное,длинное,дорогое,дешёвое,деловое",
+"Д-Л":"дятел",
+"Д-М":"дом,дым",
+"Д-Н":"дракон,диван,дворянин,дятлон,диапазон",
+"Д-О":"депо,дно,далеко,дешево,дорого,добро,дружно,душно,дико,дивно",
+"Д-Р":"директор,диктатор,дегустатор,декоратор,дирижёр,дилер,доктор,детектор,диспетчер,дублёр",
+"Д-С":"диабетос,дракондус",
+"Д-Т":"дефицит,декрет,депозит,документ,дискомфорт,дебют,диктат,десант",
+"Д-Ь":"дверь,даль,деталь,дрожь,должность,дальность,доблесть,духовность,дичь,дурь,дрянь",
+
+"Е-А":"ерунда,езда,еда",
+"Е-Ь":"ель,егерь,ересь",
+
+"Ж-А":"жена,жара,жаба,жертва,жилка",
+"Ж-Е":"желание,жёсткое,живое,жгучее",
+"Ж-Л":"журнал",
+"Ж-Н":"жеребёнок,жетон,жаргон",
+"Ж-О":"жестоко,живо,жарко",
+"Ж-Т":"жилет,жгут,жест,журналист,живот",
+"Ж-Ь":"жизнь,жуть,жадность,жёсткость,жалость",
+
+"З-А":"земля,звезда,зима,зона,зарплата,задача,забота,затея,замена,запись,загадка,занавеска,заноза",
+"З-К":"зверёк,зубок,значок,зонтик,замок,звонок,золотник,знаток",
+"З-Л":"зал,запал,закал",
+"З-Н":"закон,зубан,загон,зубан",
+"З-О":"зерно,задорно,здорово,знакомо,заметно,звонко,зорко,зябко",
+"З-Т":"зачёт,завет,зенит,запрет,значит",
+"З-Ь":"зверь,зелень,злость,зависть",
+
+"И-А":"игра,икра,идея,инициатива,интрига,ирония,интуиция,иллюзия,ипотека,искра,измена",
+"И-К":"игрок,источник,известняк",
+"И-Л":"идеал,интернационал,интеллектуал,инструментал",
+"И-Н":"инструмент,интеллигент",
+"И-О":"инкогнито",
+"И-Р":"инвестор,инструктор,инспектор,имитатор,иллюстратор",
+"И-С":"интерес,индекс",
+"И-Т":"интернет,интеллект,институт,инструмент,инфаркт,инстинкт,импорт,ингредиент,итог",
+"И-Ь":"искренность,известность,интимность,индивидуальность",
+
+"К-А":"книга,кора,кухня,кошка,крыша,клетка,карта,карьера,кастрюля,квартира,конфета,красота,кружка,курица,капуста,картошка,клубника,кукуруза",
+"К-Е":"колье,кафе,купе,кашне",
+"К-Л":"канал,кристалл,квартал,карнавал,корал,капитал,колокол",
+"К-Н":"картон,капрон,кулон,кордон,кафтан,кобальт,капитан",
+"К-О":"кино,кредо,казино,кольцо,колено,кресло,карго",
+"К-Р":"контролёр,компьютер,конструктор,координатор,коллектор,кредитор,кассир,калькулятор",
+"К-С":"компас,класс,колос,кактус,квас,купорос,кросс",
+"К-Т":"кабинет,конкурент,кандидат,комплект,контракт,клиент,компонент,комитет,концепт,климат",
+"К-Ь":"кровать,кисель,картель,карусель,кадриль,крепость,кротость,кашель",
+
+"Л-А":"луна,лиса,лампа,ладья,лента,лопата,лужа,лягушка,лодка,листва,ложка,липа,лыжня,легенда,линейка,ловушка",
+"Л-К":"лужок,листок,лесок,ларёк,лепесток,лубок",
+"Л-Н":"лабиринт,латунь",
+"Л-О":"ложно,легко,лихо,ловко,лично,либо,любо",
+"Л-Р":"лектор,лифтёр",
+"Л-С":"лес,лотос,лакмус",
+"Л-Т":"лист,лейтенант,лингвист,лаборант",
+"Л-Ь":"ладонь,лень,лось,лесть,ловкость,лёгкость,личность,ложь,лояльность",
+
+"М-А":"мама,музыка,молния,мечта,машина,метла,мышка,монета,марка,мозаика,мафия,манга",
+"М-К":"мячик,маячок,мосток,мотылёк,малёк,молоток,мешок,морячок",
+"М-Л":"минерал,материал,монументал,маршал,мемориал",
+"М-Н":"марафон,медальон,миллион,микрон,магнитон,капитан",
+"М-О":"метро,манто,мачо,меню,манго,мощно,медленно,мрачно,мягко,массово",
+"М-Р":"менеджер,мастер,мотиватор,механизатор,монстр,манипулятор",
+"М-С":"металлус,минус,максимус",
+"М-Т":"менталитет,манифест,монумент,математик,музыкант,микробиолог",
+"М-Ь":"медаль,метель,моль,мозоль,мощь,мысль,мать,мелочь,мудрость,молодость,мягкость",
+
+"Н-А":"нога,нора,нива,нитка,норма,ноша,наука,нужда,начинка,навигация,наживка",
+"Н-К":"носок,наездник,напёрсток",
+"Н-Л":"национал,нейтрал,номинал",
+"Н-Н":"наполеон,нейтрон,нейлон,нейрон",
+"Н-О":"немного,нередко,неплохо,нормально,надолго,нагло",
+"Н-Р":"навигатор",
+"Н-С":"нарцисс,нонсенс",
+"Н-Т":"нейтралитет,номинант,натюрморт,нюанс",
+"Н-Ь":"ночь,нежность,нравственность,набожность,надёжность,настойчивость,независимость,наглость",
+
+"О-А":"овца,орда,оса,осина,отрава,основа",
+"О-К":"огонёк,орешек,обломок,островок,овражек,отросток,обрывок",
+"О-Л":"овал,оригинал",
+"О-Н":"орлан,океан,орган",
+"О-О":"опасно,объективно,оперативно,осторожно,официально",
+"О-Р":"оператор,организатор,оратор,оркестратор",
+"О-С":"окунь,оракул,органус",
+"О-Т":"объект,оркестрант,оппонент,орнамент,организм",
+"О-Ь":"осень,область,опасность,обязанность,ответственность,отзывчивость,оригинальность,открытость",
+
+"П-А":"папа,пчела,пятка,песня,петля,пила,пена,пища,почка,плита,помада,посуда,пирога,природа,прогулка,продажа,погода,подруга",
+"П-К":"пирожок,петушок,пастушок,посёлок,перекрёсток,переулок,пузырёк,пятачок,паучок",
+"П-Л":"пенал,портал,потенциал,прикол,потолок,престол",
+"П-Н":"патрон,пластилин,платон,позволен",
+"П-О":"пальто,пианино,плацебо,плавно,прочно,прямо,просто,правильно,понятно",
+"П-Р":"профессор,прокурор,пионер,президент",
+"П-С":"паразитус,парадокс,патриотизм,пегас",
+"П-Т":"проект,предмет,проспект,патент,продукт,принципиат,планировщик",
+"П-Ь":"путь,прибыль,пропасть,плоть,прелесть,правдивость,простота",
+
+"Р-А":"рука,роза,река,рыба,рябина,ракета,радуга,рубаха,рубашка,распродажа,реклама,ромашка,родина,резина,рогатка",
+"Р-К":"рыбак,рубак,рывок,разок,ребёнок,рисунок,рычажок,рожок,ремешок",
+"Р-Л":"реал,ритуал,рационал",
+"Р-Н":"рефрен,роман,рацион,регион",
+"Р-О":"резко,рискованно,разумно,реально,ровно,романтично,радостно,роскошно,редко",
+"Р-Р":"режиссёр,регулятор,реставратор,редактор",
+"Р-С":"реализм,релакс,рейтинг",
+"Р-Т":"регламент,результат,реферат,рационалист,реформист,романтист",
+"Р-Ь":"рубль,роль,рысь,радостность,реальность,рассудительность,рациональность,решительность",
+
+"С-А":"страна,сторона,серьга,стрела,сова,сила,скала,собака,стена,скрипка,сумка,слива,смола,смородина,сметана,сирена,судьба,струна,служба,свинина,спина",
+"С-К":"сапожок,седок,стебелёк,сурок,стрелок,снежок,сверчок",
+"С-Л":"сигнал,скандал,спектакль,санаторий,стол,стул",
+"С-Н":"сезон,салон,слон,сифон,серпантин,тампон",
+"С-О":"серебро,сукно,стекло,смело,свежо,сыро,скорбно,сдержанно,справедливо,серьёзно,скромно,сильно,свободно,сложно",
+"С-Р":"сапёр,систематизатор,синхронизатор",
+"С-С":"стресс,синтез,символизм",
+"С-Т":"самолёт,стандарт,сертификат,специалист,студент,планировщик,ступент,синкопат",
+"С-Ь":"связь,смерть,степь,страсть,серость,смелость,стойкость,скромность,сдержанность,справедливость,самостоятельность",
+
+"Т-А":"труба,тетива,трава,тропа,тайна,точка,таблица,техника,тема,тётка,тарелка,туника,телега",
+"Т-Л":"театрал,тотал,трибунал,терминал,тоннел",
+"Т-Н":"тайфун,телефон,тюлень,телевизион,тандем,тампон",
+"Т-О":"тесто,тело,темно,тихо,твёрдо,трогательно,точно,тонко,тяжело,тревожно,тускло,торжественно",
+"Т-Р":"тренер,транслятор,топограф",
+"Т-С":"тезаурус,термос,тонус",
+"Т-Т":"трактат,тест,текст,тент,транспорт",
+"Т-Ь":"тетрадь,тень,твёрдость,точность,тактичность,терпеливость,толерантность",
+
+"У-А":"удача,улица,уточка,утка,умница,упряжка,усадьба,утроба",
+"У-К":"узелок,уголёк,утёнок,урок,участок",
+"У-Н":"ультиматум,углон",
+"У-О":"умно,удобно,успешно,убедительно,уверенно,уважительно,усердно",
+"У-Т":"университет,учёт",
+"У-Ь":"уязвимость,уравновешенность,уверенность,умелость,усердность",
+
+"Ф-А":"фраза,форма,фигура,фабрика,фауна,формула,фантазия",
+"Ф-Л":"финал",
+"Ф-Н":"фотон,флагон,фундамент",
+"Ф-О":"фото,фламинго",
+"Ф-С":"факс",
+"Ф-Т":"факультет,футболист,фигурист,флорист,фармацевт",
+"Ф-Ь":"фасоль,фальшь",
+
+"Х-А":"хижина,хурма,халва",
+"Х-О":"хорошо,хмуро,хлёстко,хаотично",
+"Х-Р":"хирург",
+"Х-Т":"хирург,химик",
+"Х-Ь":"хитрость,холодность",
+
+"Ц-А":"цена,цифра,цапля,целина",
+"Ц-О":"ценно,цельно",
+"Ц-Т":"цветовод",
+"Ц-Ь":"цепь,ценность",
+
+"Ч-А":"чашка,черника,черта,черёмуха",
+"Ч-О":"чисто,чётко,чудно",
+"Ч-Т":"чемпионат",
+"Ч-Ь":"честь,чёрствость,чувственность,чистоплотность",
+
+"Ш-А":"школа,шляпа,шпага,шкура,шахта,шутка,шапка,штора",
+"Ш-О":"широко,шумно,шутливо,шикарно",
+"Ш-Т":"штангист",
+"Ш-Ь":"шерсть,шалость",
+
+"Э-А":"эпоха,эстрада",
+"Э-О":"эффективно,эмоционально",
+"Э-Т":"элемент,эксперимент,эрудит,экономист",
+"Э-Ь":"эффективность,эмоциональность",
+
+"Ю-А":"юрта",
+"Ю-Т":"юморист,юрист",
+"Ю-Ь":"юность",
+
+"Я-А":"яблоня,ягода,яма,ярмарка,ячейка",
+"Я-К":"ярлык,яблок,ящик",
+"Я-О":"явно,ясно,ярко",
+"Я-Ь":"ярость,ясность"
+};
+
+var VALID_PAIRS = Object.keys(WORDS);
+
+var players = [];      // [{name, score, roundScore}]
+var roundNum = 1;
+var letter1 = null, letter2 = null;
+var timerInterval = null, timeLeft = 60;
+var gameActive = false;
+
+function el(id) { return document.getElementById(id); }
+
+// ── SETUP ──
+function renderSetup() {
+  var list = el('playersList');
+  list.innerHTML = '';
+  players.forEach(function(p, i) {
+    var row = document.createElement('div');
+    row.className = 'player-row';
+    row.innerHTML =
+      '<span class="player-num">' + (i+1) + '</span>' +
+      '<input class="player-input" placeholder="Имя игрока ' + (i+1) + '" value="' + p.name + '" data-idx="' + i + '" />' +
+      (players.length > 2 ? '<button class="btn-remove" data-idx="' + i + '">×</button>' : '');
+    list.appendChild(row);
+  });
+
+  list.querySelectorAll('.player-input').forEach(function(inp) {
+    inp.addEventListener('input', function() {
+      players[+this.dataset.idx].name = this.value.trim();
+      updateStartBtn();
+    });
+  });
+  list.querySelectorAll('.btn-remove').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      players.splice(+this.dataset.idx, 1);
+      renderSetup();
+    });
+  });
+
+  el('btnAddPlayer').style.display = players.length >= 10 ? 'none' : '';
+  updateStartBtn();
+}
+
+function updateStartBtn() {
+  var valid = players.filter(function(p){ return p.name.length > 0; }).length >= 2;
+  el('btnStart').disabled = !valid;
+}
+
+el('btnAddPlayer').addEventListener('click', function() {
+  if (players.length < 10) {
+    players.push({ name: '', score: 0, roundScore: 0 });
+    renderSetup();
+    // focus last input
+    setTimeout(function() {
+      var inputs = el('playersList').querySelectorAll('.player-input');
+      if (inputs.length) inputs[inputs.length-1].focus();
+    }, 50);
+  }
+});
+
+el('btnStart').addEventListener('click', function() {
+  // keep only named players
+  players = players.filter(function(p){ return p.name.length > 0; });
+  players.forEach(function(p){ p.score = 0; p.roundScore = 0; });
+  roundNum = 1;
+  show('screenGame');
+  buildPlayersGrid();
+  el('btnDraw').style.display = '';
+  el('roundLabel').textContent = 'Раунд ' + roundNum;
+});
+
+// ── GAME ──
+function buildPlayersGrid() {
+  var grid = el('playersGrid');
+  grid.innerHTML = '';
+  players.forEach(function(p, i) {
+    var btn = document.createElement('button');
+    btn.className = 'player-btn';
+    btn.dataset.idx = i;
+    btn.innerHTML = '<span class="p-name">' + p.name + '</span><span class="p-score" id="pscore-' + i + '">0</span>';
+    btn.addEventListener('click', function() {
+      if (!gameActive) return;
+      soundScore();
+      p.roundScore++;
+      el('pscore-' + i).textContent = p.roundScore;
+      this.classList.add('scored');
+      // bump animation
+      var sc = el('pscore-' + i);
+      sc.classList.remove('bump');
+      void sc.offsetWidth;
+      sc.classList.add('bump');
+    });
+    grid.appendChild(btn);
+  });
+}
+
+function updateGridScores() {
+  players.forEach(function(p, i) {
+    var sc = el('pscore-' + i);
+    if (sc) sc.textContent = p.roundScore;
+  });
+}
+
+el('btnDraw').addEventListener('click', function() {
+  var pair = VALID_PAIRS[Math.floor(Math.random() * VALID_PAIRS.length)];
+  var parts = pair.split('-');
+  letter1 = parts[0]; letter2 = parts[1];
+
+  el('card1').className = 'card first drawn pop';
+  el('card1').innerHTML = letter1 + '<span class="card-label">начало</span>';
+  el('card2').className = 'card second drawn pop';
+  el('card2').innerHTML = letter2 + '<span class="card-label">конец</span>';
+
+  // reset round scores
+  players.forEach(function(p){ p.roundScore = 0; });
+  el('playersGrid').querySelectorAll('.player-btn').forEach(function(b){ b.classList.remove('scored'); });
+  updateGridScores();
+
+  el('btnDraw').style.display = 'none';
+  soundRoundStart();
+  setTimeout(startBgMusic, 1000);
+  startTimer();
+});
+
+function startTimer() {
+  stopTimer();
+  timeLeft = 60;
+  gameActive = true;
+  el('timerWrap').classList.remove('invisible');
+  updateTimerUI();
+  timerInterval = setInterval(function() {
+    timeLeft--;
+    updateTimerUI();
+    if (timeLeft <= 0) { stopTimer(); onTimeout(); }
+  }, 1000);
+}
+
+function stopTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  gameActive = false;
+  stopBgMusic();
+}
+
+function updateTimerUI() {
+  var m = Math.floor(timeLeft / 60);
+  var s = timeLeft % 60;
+  el('timerDisplay').textContent = m + ':' + (s < 10 ? '0' : '') + s;
+  var pct = (timeLeft / 60) * 100;
+  el('timerBar').style.width = pct + '%';
+  var cls = timeLeft <= 10 ? 'danger' : timeLeft <= 20 ? 'warning' : '';
+  el('timerDisplay').className = 'timer-display' + (cls ? ' ' + cls : '');
+  el('timerBar').className = 'timer-bar' + (cls ? ' ' + cls : '');
+  if (timeLeft <= 10 && timeLeft > 0) soundTick(10 - timeLeft);
+}
+
+function onTimeout() {
+  stopBgMusic();
+  soundTimeUp();
+  el('timerWrap').classList.add('invisible');
+  setTimeout(showRoundResult, 900);
+}
+
+// ── RESULT ──
+function showRoundResult() {
+  // add round scores to total
+  players.forEach(function(p){ p.score += p.roundScore; });
+
+  el('resultRoundLabel').textContent = 'Раунд ' + roundNum + ' — итог';
+
+  // words
+  var key = letter1 + '-' + letter2;
+  var raw = WORDS[key] || '';
+  var words = raw.split(',').map(function(w){ return w.trim(); }).filter(Boolean);
+  words.sort(function(){ return Math.random()-0.5; }).slice(0, 12);
+  el('resultWords').innerHTML = words.length
+    ? words.slice(0,12).map(function(w){ return '<span class="word-chip">' + w.toUpperCase() + '</span>'; }).join('')
+    : '<span style="color:var(--muted);font-size:13px">—</span>';
+
+  // scores sorted
+  var sorted = players.slice().sort(function(a,b){ return b.score - a.score; });
+  var maxScore = sorted[0].score;
+  el('resultScores').innerHTML = sorted.map(function(p) {
+    var isLead = p.score === maxScore && maxScore > 0;
+    return '<div class="score-row-item' + (isLead ? ' leader' : '') + '">' +
+      '<span class="sname">' + p.name + '</span>' +
+      '<span class="spts">' + p.score + ' ' + pts(p.score) + '</span>' +
+      '</div>';
+  }).join('');
+
+  show('screenResult');
+}
+
+el('btnNextRound').addEventListener('click', function() {
+  roundNum++;
+  el('roundLabel').textContent = 'Раунд ' + roundNum;
+  el('card1').className = 'card first empty';
+  el('card1').innerHTML = '?<span class="card-label">начало</span>';
+  el('card2').className = 'card second empty';
+  el('card2').innerHTML = '?<span class="card-label">конец</span>';
+  el('timerDisplay').textContent = '1:00';
+  el('timerDisplay').className = 'timer-display';
+  el('timerBar').style.width = '100%';
+  el('timerBar').className = 'timer-bar';
+  el('btnDraw').style.display = '';
+  players.forEach(function(p){ p.roundScore = 0; });
+  el('playersGrid').querySelectorAll('.player-btn').forEach(function(b){ b.classList.remove('scored'); });
+  updateGridScores();
+  show('screenGame');
+});
+
+el('btnEndGame').addEventListener('click', showFinal);
+
+// ── FINAL ──
+function showFinal() {
+  var sorted = players.slice().sort(function(a,b){ return b.score - a.score; });
+  var medals = ['🥇','🥈','🥉'];
+  el('finalScores').innerHTML = sorted.map(function(p, i) {
+    var isFirst = i === 0;
+    return '<div class="final-row' + (isFirst ? ' first-place' : '') + '">' +
+      '<span class="fplace">' + (medals[i] || (i+1)+'.') + '</span>' +
+      '<span class="fname">' + p.name + '</span>' +
+      '<span class="fpts">' + p.score + ' ' + pts(p.score) + '</span>' +
+      '</div>';
+  }).join('');
+  el('finalSub').textContent = roundNum + ' ' + rounds(roundNum) + ' сыграно';
+  show('screenFinal');
+  soundFinal();
+}
+
+el('btnRestart').addEventListener('click', function() {
+  players.forEach(function(p){ p.score = 0; p.roundScore = 0; p.name = ''; });
+  players = [{ name:'', score:0, roundScore:0 }, { name:'', score:0, roundScore:0 }];
+  roundNum = 1;
+  renderSetup();
+  show('screenSetup');
+});
+
+// ── UTILS ──
+function show(id) {
+  ['screenSetup','screenGame','screenResult','screenFinal'].forEach(function(s) {
+    el(s).classList.toggle('hidden', s !== id);
+  });
+}
+
+function pts(n) {
+  var m = n % 10, h = n % 100;
+  if (m === 1 && h !== 11) return 'очко';
+  if (m >= 2 && m <= 4 && (h < 10 || h >= 20)) return 'очка';
+  return 'очков';
+}
+
+function rounds(n) {
+  var m = n % 10, h = n % 100;
+  if (m === 1 && h !== 11) return 'раунд';
+  if (m >= 2 && m <= 4 && (h < 10 || h >= 20)) return 'раунда';
+  return 'раундов';
+}
+
+// init
+players = [{ name:'', score:0, roundScore:0 }, { name:'', score:0, roundScore:0 }];
+renderSetup();
+
+
+// ── PWA SETUP ──
+(function() {
+  // Генерируем иконку
+  function makeIcon(size) {
+    var c = document.createElement('canvas');
+    c.width = size; c.height = size;
+    var ctx = c.getContext('2d');
+    var r = size * 0.22;
+    ctx.fillStyle = '#0f0f0f';
+    ctx.beginPath();
+    ctx.moveTo(r, 0);
+    ctx.lineTo(size - r, 0);
+    ctx.quadraticCurveTo(size, 0, size, r);
+    ctx.lineTo(size, size - r);
+    ctx.quadraticCurveTo(size, size, size - r, size);
+    ctx.lineTo(r, size);
+    ctx.quadraticCurveTo(0, size, 0, size - r);
+    ctx.lineTo(0, r);
+    ctx.quadraticCurveTo(0, 0, r, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#d4f500';
+    ctx.font = 'bold ' + Math.floor(size * 0.55) + 'px Arial Black, Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Б', size * 0.38, size * 0.5);
+    ctx.fillStyle = '#666';
+    ctx.font = 'bold ' + Math.floor(size * 0.22) + 'px Arial';
+    ctx.fillText('→', size * 0.72, size * 0.5);
+    return c.toDataURL('image/png');
+  }
+
+  try {
+    var iconData = makeIcon(512);
+    var appleIcon = document.getElementById('apple-icon');
+    if (appleIcon) appleIcon.href = iconData;
+
+    var manifest = {
+      name: 'Буква → Слово → Буква',
+      short_name: 'Буква-Слово',
+      description: 'Игра в слова для компании',
+      start_url: '.',
+      display: 'fullscreen',
+      orientation: 'portrait',
+      background_color: '#0f0f0f',
+      theme_color: '#0f0f0f',
+      icons: [
+        { src: iconData, sizes: '512x512', type: 'image/png' },
+        { src: iconData, sizes: '192x192', type: 'image/png' }
+      ]
+    };
+    var manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+    var manifestEl = document.getElementById('pwa-manifest');
+    if (manifestEl) manifestEl.href = URL.createObjectURL(manifestBlob);
+  } catch(e) {}
+
+  // Баннер установки для iOS
+  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  var isStandalone = window.navigator.standalone;
+  if (isIOS && !isStandalone) {
+    setTimeout(function() {
+      try {
+        var style = document.createElement('style');
+        style.textContent = '@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}';
+        document.head.appendChild(style);
+        var banner = document.createElement('div');
+        banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1a1a1a;border-top:1px solid #2a2a2a;padding:16px 20px 32px;z-index:9999;font-family:Inter,sans-serif;font-size:13px;color:#f0f0f0;display:flex;align-items:center;gap:12px;animation:slideUp 0.4s ease';
+        var closeBtn = document.createElement('button');
+        closeBtn.textContent = '×';
+        closeBtn.style.cssText = 'background:none;border:none;color:#666;font-size:22px;cursor:pointer;padding:4px';
+        closeBtn.onclick = function() { banner.parentNode.removeChild(banner); };
+        var icon = document.createElement('div');
+        icon.style.fontSize = '32px';
+        icon.textContent = '📲';
+        var text = document.createElement('div');
+        text.style.flex = '1';
+        text.innerHTML = '<div style="font-weight:700;margin-bottom:3px">Установить как приложение</div><div style="color:#666;font-size:12px">Нажми Поделиться → На экран Домой</div>';
+        banner.appendChild(icon);
+        banner.appendChild(text);
+        banner.appendChild(closeBtn);
+        document.body.appendChild(banner);
+      } catch(e) {}
+    }, 2500);
+  }
+})();
+
+</script>
+</body>
+</html>
